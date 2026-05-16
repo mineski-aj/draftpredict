@@ -1054,28 +1054,31 @@ function getServerHost() {
 }
 
 function startControlPoll() {
-  setInterval(async () => {
+  async function _tick() {
     try {
       const res = await fetch(`http://${getServerHost()}/overlay/draftpredict/poll`, { cache: 'no-store' });
-      if (!res.ok) return;
-      const { commands } = await res.json();
-      for (const cmd of commands) {
-        if (cmd === 'show') {
-          document.getElementById('debug').classList.remove('visible');
-          setTimeout(() => {
-            userHidden = false;
-            if (!pollTimer) restartPoller();
-            const latest = activeData?.predictions?.slice(-1)[0];
-            if (latest) renderPrediction(latest, activeData);
-            else if (activePanel) { showPanel(activePanel, true); getActiveCarousel()?.startRoulette(); }
-          }, 500);
-        } else if (cmd === 'hide') {
-          hideAll();
-          stopPoller();
+      if (res.ok) {
+        const { commands } = await res.json();
+        for (const cmd of commands) {
+          if (cmd === 'show') {
+            document.getElementById('debug').classList.remove('visible');
+            setTimeout(() => {
+              userHidden = false;
+              if (!pollTimer) restartPoller();
+              const latest = activeData?.predictions?.slice(-1)[0];
+              if (latest) renderPrediction(latest, activeData);
+              else if (activePanel) { showPanel(activePanel, true); getActiveCarousel()?.startRoulette(); }
+            }, 500);
+          } else if (cmd === 'hide') {
+            hideAll();
+            stopPoller();
+          }
         }
       }
     } catch {}
-  }, 500);
+    setTimeout(_tick, 500);
+  }
+  _tick();
 }
 
 // ════════════════════════════════════════════
