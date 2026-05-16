@@ -1047,38 +1047,60 @@ function stopPoller() {
 }
 
 // ════════════════════════════════════════════
-//  REMOTE CONTROL  (proxy.py /control/* endpoints)
+//  REMOTE CONTROL — SSE-based (event: draftpredict)
 // ════════════════════════════════════════════
 function getServerHost() {
   return (document.getElementById('server-host')?.value || 'localhost:3000').trim();
 }
 
+function applyCmd(cmd) {
+  if (cmd === 'show') {
+    document.getElementById('debug').classList.remove('visible');
+    setTimeout(() => {
+      userHidden = false;
+      if (!pollTimer) restartPoller();
+      const latest = activeData?.predictions?.slice(-1)[0];
+      if (latest) renderPrediction(latest, activeData);
+      else if (activePanel) { showPanel(activePanel, true); getActiveCarousel()?.startRoulette(); }
+    }, 500);
+  } else if (cmd === 'hide') {
+    hideAll();
+    stopPoller();
+  }
+}
+
+let _sseSource = null;
 function startControlPoll() {
-  async function _tick() {
+  // ── SSE: instant delivery (same mechanism as all other overlays) ──────────
+  function connectSSE() {
+    if (_sseSource) { _sseSource.close(); _sseSource = null; }
+    const es = new EventSource(`http://${getServerHost()}/overlay/events`);
+    es.addEventListener('draftpredict', e => {
+      try { applyCmd(JSON.parse(e.data).cmd); } catch {}
+    });
+    es.onerror = () => {}; // auto-reconnects
+    _sseSource = es;
+  }
+  connectSSE();
+  document.getElementById('server-host').addEventListener('change', connectSSE);
+
+  // ── Poll fallback: catches commands if SSE is still connecting or dropped ─
+  async function _pollTick() {
+    const ac = new AbortController();
+    const t = setTimeout(() => ac.abort(), 400);
     try {
-      const res = await fetch(`http://${getServerHost()}/overlay/draftpredict/poll`, { cache: 'no-store' });
+      const res = await fetch(`http://${getServerHost()}/overlay/draftpredict/poll`, {
+        cache: 'no-store', signal: ac.signal
+      });
+      clearTimeout(t);
       if (res.ok) {
         const { commands } = await res.json();
-        for (const cmd of commands) {
-          if (cmd === 'show') {
-            document.getElementById('debug').classList.remove('visible');
-            setTimeout(() => {
-              userHidden = false;
-              if (!pollTimer) restartPoller();
-              const latest = activeData?.predictions?.slice(-1)[0];
-              if (latest) renderPrediction(latest, activeData);
-              else if (activePanel) { showPanel(activePanel, true); getActiveCarousel()?.startRoulette(); }
-            }, 500);
-          } else if (cmd === 'hide') {
-            hideAll();
-            stopPoller();
-          }
-        }
+        commands.forEach(applyCmd);
       }
     } catch {}
-    setTimeout(_tick, 500);
+    setTimeout(_pollTick, 300);
   }
-  _tick();
+  _pollTick();
 }
 
 // ════════════════════════════════════════════
