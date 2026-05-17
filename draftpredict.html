@@ -467,8 +467,7 @@ const CARD_W = 85;  // 80px card + 5px gap
 let scrollSpeed = 0.5;
 
 function fmtPct(p) {
-  const s = p.toFixed(2);
-  return parseFloat(s) < 10 ? `0${s}%` : `${s}%`;
+  return `${p.toFixed(2)}%`;
 }
 
 function createCarousel(viewportEl, direction) {
