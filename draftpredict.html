@@ -370,7 +370,7 @@ html, body {
     <div class="dsec-title">Controls</div>
     <div class="debug-row">
       <button class="dbtn blue" onclick="userHidden=false;if(!pollTimer)restartPoller();const _l=activeData?.predictions?.slice(-1)[0];if(_l)renderPrediction(_l,activeData);else if(activePanel){showPanel(activePanel,true);getActiveCarousel()?.startRoulette();}">Show</button>
-      <button class="dbtn red"  onclick="hideAll();stopPoller();">Hide</button>
+      <button class="dbtn red"  onclick="hideAll();">Hide</button>
     </div>
   </div>
 
@@ -792,6 +792,12 @@ function detectReveal(newData) {
     redBans:   [...(displayedDraftRef.redBans||[]),   ...added.filter(p=>p.side==='red' &&p.type==='ban').map(p=>p.heroId)],
   };
 
+  // When hidden, silently acknowledge picks — no animation, no catch-up on show
+  if (userHidden) return true;
+
+  // Sort by slot so picks are processed in draft order (lower slot = picked earlier)
+  added.sort((a, b) => (a.pred?.slot ?? 999) - (b.pred?.slot ?? 999));
+
   const wasIdle = pickQueue.length === 0 && !blueC?.isAnimating && !redC?.isAnimating;
   added.forEach(p => pickQueue.push(p));
   if (wasIdle) _processPickQueue(newData);
@@ -830,9 +836,9 @@ function _processPickQueue(fallbackData) {
     }
   };
 
-  // If picked hero isn't in the current carousel, reinit using the stored prediction
-  // (captured from prevData at detection time) or fall back to searching activeData.
+  // Find picked hero in current carousel
   let idx = targetC.cardEls.findIndex(el => el.dataset.heroId === entry.heroId);
+
   if (idx === -1) {
     const data = activeData || fallbackData;
     const sidePred = entry.pred
@@ -845,12 +851,24 @@ function _processPickQueue(fallbackData) {
       setHeaderText(entry.side,
         entry.side === 'blue' ? data.blueTeam?.name : data.redTeam?.name,
         sidePred.type);
-      targetC.init(sidePred.candidates.slice(0, 10));
-      buildAnimTestGrid(sidePred.candidates.slice(0, 10));
+      // Build candidate list — force the picked hero in even if ranked outside top 10
+      const cands = sidePred.candidates.slice(0, 10);
+      if (!cands.some(c => c.heroId === entry.heroId)) {
+        const actual = sidePred.candidates.find(c => c.heroId === entry.heroId);
+        if (actual) cands.splice(cands.length - 1, 1, actual);
+      }
+      targetC.init(cands);
+      buildAnimTestGrid(cands);
       activePanel   = entry.side;
       displayedSlot = sidePred.slot;
       idx = targetC.cardEls.findIndex(el => el.dataset.heroId === entry.heroId);
     }
+  }
+
+  // Hero still not in carousel (no prediction data at all) — advance queue immediately
+  if (idx === -1) {
+    onDone();
+    return;
   }
 
   // Ramp up roulette first if carousel wasn't already spinning
@@ -1049,15 +1067,23 @@ function applyCmd(cmd) {
   if (cmd === 'show') {
     document.getElementById('debug').classList.remove('visible');
     setTimeout(() => {
+      // Clear any stale queue from while we were hidden — show current state, not catch-up
+      if (blueC) { clearTimeout(blueC.clearTimer); cancelAnimationFrame(blueC.raf); blueC.isAnimating = false; }
+      if (redC)  { clearTimeout(redC.clearTimer);  cancelAnimationFrame(redC.raf);  redC.isAnimating  = false; }
+      pickQueue  = [];
       userHidden = false;
-      if (!pollTimer) restartPoller();
-      const latest = activeData?.predictions?.slice(-1)[0];
+      const latest = activeData?.predictions?.find(p => p.slot === activeData?.currentSlot)
+                  || activeData?.predictions?.slice(-1)[0];
       if (latest) renderPrediction(latest, activeData);
       else if (activePanel) { showPanel(activePanel, true); getActiveCarousel()?.startRoulette(); }
     }, 500);
   } else if (cmd === 'hide') {
-    hideAll();
-    stopPoller();
+    // Cancel any running animations cleanly
+    if (blueC) { clearTimeout(blueC.clearTimer); cancelAnimationFrame(blueC.raf); blueC.isAnimating = false; }
+    if (redC)  { clearTimeout(redC.clearTimer);  cancelAnimationFrame(redC.raf);  redC.isAnimating  = false; }
+    pickQueue = [];
+    hideAll(); // sets userHidden = true, removes visible classes
+    // Poller keeps running — detectReveal silently advances displayedDraftRef while hidden
   }
 }
 
