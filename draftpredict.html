@@ -288,7 +288,7 @@ html, body {
 <!-- ══ BLUE PANEL (left edge) ══ -->
 <div id="blue-panel" class="draft-panel">
   <div class="panel-header">
-    <span class="header-text" id="blue-header-text">DRAFT PREDICT</span>
+    <span class="header-text" id="blue-header-text">AI DRAFT PREDICTOR</span>
   </div>
   <div class="panel-body">
     <div class="carousel-viewport" id="blue-viewport"></div>
@@ -300,7 +300,7 @@ html, body {
 <!-- ══ RED PANEL (right edge) ══ -->
 <div id="red-panel" class="draft-panel">
   <div class="panel-header">
-    <span class="header-text" id="red-header-text">DRAFT PREDICT</span>
+    <span class="header-text" id="red-header-text">AI DRAFT PREDICTOR</span>
   </div>
   <div class="panel-body">
     <div class="carousel-viewport" id="red-viewport"></div>
@@ -721,10 +721,10 @@ function setHeaderText(side, teamName, type) {
   const typeSpan = `<span class="${cls}">${type}</span>`;
   if (side === 'blue') {
     document.getElementById('blue-header-text').innerHTML =
-      `DRAFT PREDICT &mdash; ${tricode} ${typeSpan}`;
+      `AI DRAFT PREDICTOR &mdash; ${tricode} ${typeSpan}`;
   } else {
     document.getElementById('red-header-text').innerHTML =
-      `${typeSpan} ${tricode} &mdash; DRAFT PREDICT`;
+      `${typeSpan} ${tricode} &mdash; AI DRAFT PREDICTOR`;
   }
 }
 
